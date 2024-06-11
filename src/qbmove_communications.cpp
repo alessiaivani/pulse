@@ -2,7 +2,7 @@
 // BSD 3-Clause License
 
 // Copyright (c) 2016, qbrobotics
-// Copyright (c) 2017-2019, Centro "E.Piaggio"
+// Copyright (c) 2017-2020, Centro "E.Piaggio"
 // All rights reserved.
 
 
@@ -40,10 +40,10 @@
  *  \file       qbmove_communications.cpp
  *
  *  \brief      Library of functions for serial port communication with a board
- * \date         May 03, 2018
+ * \date        March 19th, 2020
  * \author       _Centro "E.Piaggio"_
  * \copyright    (C) 2012-2016 qbrobotics. All rights reserved.
- * \copyright    (C) 2017-2018 Centro "E.Piaggio". All rights reserved.
+ * \copyright    (C) 2017-2020 Centro "E.Piaggio". All rights reserved.
 
 
  *  \details
@@ -405,6 +405,14 @@ error:
         goto error;
     }
 
+#if (defined __APPLE__)
+    //Set non custom baudrate for APPLE systems
+    if(ioctl(comm_settings_t->file_handle, IOSSIOSPEED, &custom_baudrate, 1)){
+        printf("ERROR\n");
+        goto error;
+    }
+#endif
+
     return;
 
 error:
@@ -478,7 +486,7 @@ int RS485read(comm_settings *comm_settings_t, int id, char *package)
 
 // UNIX
 #else
-    int n_bytes;
+    unsigned int n_bytes;
     struct timeval start, now;
 
     gettimeofday(&start, NULL);
@@ -915,6 +923,51 @@ int commGetActivate(comm_settings *comm_settings_t, int id, char *activate){
 }
 
 //==============================================================================
+//                                                            commSetInputsPULSE
+//==============================================================================
+// This function send reference inputs to the qb move.
+//==============================================================================
+
+void commSetInputsPULSE(comm_settings *comm_settings_t, int id, short int inputsPULSE[]) {
+
+    char data_out[BUFFER_SIZE];         // output data buffer
+
+#if (defined(_WIN32) || defined(_WIN64))
+    DWORD package_size_out;             // for serial port access
+#else
+    unsigned char package_in[BUFFER_SIZE];
+    int n_bytes;
+#endif
+
+
+    data_out[0] = ':';
+    data_out[1] = ':';
+    data_out[2] = (unsigned char) id;
+    data_out[3] = 8;
+
+    data_out[4] = CMD_SET_INPUTS;                // command
+    data_out[5] = ((char *) &inputsPULSE[0])[1];
+    data_out[6] = ((char *) &inputsPULSE[0])[0];
+    data_out[7] = ((char *) &inputsPULSE[1])[1];
+    data_out[8] = ((char *) &inputsPULSE[1])[0];
+    data_out[9] = ((char *) &inputsPULSE[2])[1];
+    data_out[10] = ((char *) &inputsPULSE[2])[0];
+    data_out[11] = checksum(data_out + 4, 7);   // checksum
+
+#if (defined(_WIN32) || defined(_WIN64))
+    WriteFile(comm_settings_t->file_handle, data_out, 12, &package_size_out, NULL);
+#else
+    ioctl(comm_settings_t->file_handle, FIONREAD, &n_bytes);
+    if(n_bytes)
+        read(comm_settings_t->file_handle, package_in, n_bytes);
+
+    write(comm_settings_t->file_handle, data_out, 12);
+#endif
+
+}
+
+
+//==============================================================================
 //                                                               commSetInputs
 //==============================================================================
 // This function send reference inputs to the qb move.
@@ -955,7 +1008,6 @@ void commSetInputs(comm_settings *comm_settings_t, int id, short int inputs[]) {
 #endif
 
 }
-
 
 //==============================================================================
 //                                                               commSetPosStiff
@@ -1601,9 +1653,19 @@ int commGetInfo(comm_settings *comm_settings_t, int id, short int info_type, cha
 #if (defined(_WIN32) || defined(_WIN64))
     WriteFile(comm_settings_t->file_handle, data_out, 8, &package_size_out, NULL);
 
-    n_bytes_in = 1;
-
     Sleep(200);
+
+    if (info_type == GET_SD_FS_TREE || info_type == GET_SD_EMG_HIST){       // Wait until the packet arrives (wait more time) [NMMI mod.]
+        n_bytes_in = 0;
+        do{
+            ReadFile(comm_settings_t->file_handle, &aux, 1, &n_bytes_in, NULL); 
+        } while (!n_bytes_in);
+        buffer[i] = aux;
+        i++;
+    }
+    else {
+        n_bytes_in = 1;
+    }
 
     while(n_bytes_in) {
         ReadFile(comm_settings_t->file_handle, &aux, 1, &n_bytes_in, NULL);

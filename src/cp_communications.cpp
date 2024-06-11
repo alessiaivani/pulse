@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016-2019, Mattia Poggiani.
+// Copyright (c) 2016-2020, Mattia Poggiani.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -128,10 +128,9 @@ int commGetImuReadings(comm_settings *comm_settings_t, int id, uint8_t* imu_tabl
 	memset(package_in, 0, sizeof(package_in));
 	
     package_in_size = RS485read(comm_settings_t, id, package_in);
-    if (package_in_size < 0){
+    if (package_in_size < 0)
         return package_in_size;
-    }
-	
+	acc_sf 	= 1;
 	acc_sf 	= 0.000061037;			// Ticks to G
 	gyro_sf = 0.007629627 * 8;		// Ticks to deg/s with FS +/- 2000 °/s
 	mag_sf 	= 0.1465;				// Ticks to uT
@@ -139,15 +138,15 @@ int commGetImuReadings(comm_settings *comm_settings_t, int id, uint8_t* imu_tabl
 	temp_sf = 0.00294118; // 1/340 //0.001426;
 	temp_off = 36.53; //21.6;
 	temp_div = 2.0;
-	
+
 	values = &package_in[1];
-	/*
- 	printf("SIZE: %d\n", package_in_size);
-	for (int i=0; i< package_in_size; i++) {
-		printf("%d,", values[i]);
-	}
-	printf("\n"); 
-	*/
+	
+ 	//printf("SIZE: %d\n", package_in_size);
+	//for (int i=0; i< package_in_size; i++) {
+	//	printf("%d,", values[i]);
+	//}
+	//printf("\n"); 
+	
 	for (int i=0; i < n_imu; i++){
 
 		if (values[c] == ':'){
@@ -156,16 +155,21 @@ int commGetImuReadings(comm_settings *comm_settings_t, int id, uint8_t* imu_tabl
 			if (imu_table[5*i + 0]) {
 				((char *) &aux_si)[0] = values[c+2];
 				((char *) &aux_si)[1] = values[c+1];
+                printf("%d ", (int16_t)aux_si);
 				aux_float[0] = (float) ( aux_si * acc_sf);
 
 				((char *) &aux_si)[0] = values[c+4];
 				((char *) &aux_si)[1] = values[c+3];
+                printf("%d ", (int16_t)aux_si);
+
 				aux_float[1] = (float) ( aux_si * acc_sf);
 				((char *) &aux_si)[0] = values[c+6];
 				((char *) &aux_si)[1] = values[c+5];
+                printf("%d\n", (int16_t)aux_si);
+
 				aux_float[2] = (float) ( aux_si * acc_sf);
 
-				imu_values[(3*3+4+1)*i]   = aux_float[0];
+				imu_values[(3*3+4+1)*i] = aux_float[0];
 				imu_values[(3*3+4+1)*i+1] = aux_float[1];
 				imu_values[(3*3+4+1)*i+2] = aux_float[2];
 				c += 6;
@@ -237,7 +241,7 @@ int commGetImuReadings(comm_settings *comm_settings_t, int id, uint8_t* imu_tabl
 			if (imu_table[5*i + 4]) {
 				((char *) &aux_si)[0] = values[c+2];
 				((char *) &aux_si)[1] = values[c+1];
-				aux_float[0] = (float) (aux_si * temp_sf + temp_off) / temp_div;
+				aux_float[0] = (float) (aux_si * (float)temp_sf + temp_off) / temp_div;
 				
 				imu_values[(3*3+4+1)*i+13] = aux_float[0];
 				c += 2;
@@ -253,7 +257,6 @@ int commGetImuReadings(comm_settings *comm_settings_t, int id, uint8_t* imu_tabl
 			//printf("Break at %d\n", c);
 		}	
 	}
-
 	return 0;
 }
 
@@ -599,6 +602,93 @@ int commGetADCRawValues(comm_settings *comm_settings_t, int id, uint8_t num_chan
 	}
 	
 	return 0;
+}
+
+//==============================================================================
+//                                                                 commGetSDFile
+//==============================================================================
+// This function gets a file stored in SD card.
+//==============================================================================
+
+int commGetSDFile(comm_settings *comm_settings_t, int id, char* filename, char *buffer) {
+
+    char data_out[BUFFER_SIZE];             // output data buffer
+
+#if (defined(_WIN32) || defined(_WIN64))
+    DWORD package_size_out;                 // for serial port access
+    DWORD n_bytes_in = 0;
+    unsigned char aux;
+    int i = 0;
+#else
+    int bytes;
+    int count = 0;
+    const int size = 512;
+    char aux_buffer[size];
+#endif
+
+    strcpy(buffer, "");
+    unsigned short file_length = strlen(filename);
+//=================================================		preparing packet to send
+
+    data_out[0] = ':';
+    data_out[1] = ':';
+    data_out[2] = (unsigned char) id;
+    data_out[3] = 4 + file_length;
+    data_out[4] = CMD_GET_SD_SINGLE_FILE;                        // command
+    data_out[5] = ((char *) &file_length)[1];          // parameter type
+    data_out[6] = ((char *) &file_length)[0];          // parameter type
+
+ 	for(int h = 0; h < file_length; h++) {
+        
+        data_out[ h +  7 ] = filename[ h ];
+        
+    }
+    data_out[ 7 + file_length ] = checksum( data_out + 4, 3 + file_length );
+
+
+#if (defined(_WIN32) || defined(_WIN64))
+    WriteFile(comm_settings_t->file_handle, data_out, 8+file_length, &package_size_out, NULL);
+
+    Sleep(200);
+
+    n_bytes_in = 1;
+
+    while(n_bytes_in) {
+        ReadFile(comm_settings_t->file_handle, &aux, 1, &n_bytes_in, NULL);
+        if(n_bytes_in)
+            buffer[i] = aux;
+        i++;
+    }
+
+#else
+
+    write(comm_settings_t->file_handle, data_out, 8+file_length);
+
+    usleep(200000);
+
+    while(1) {
+        usleep(50000);
+
+        if(ioctl(comm_settings_t->file_handle, FIONREAD, &bytes) < 0)
+            break;
+
+        if(bytes == 0)
+            break;
+
+        if(bytes > size)
+            bytes = size;
+
+        read(comm_settings_t->file_handle, aux_buffer, bytes);
+
+        strncpy(buffer + count, aux_buffer, bytes);
+
+        count += bytes;
+    }
+
+    strcpy(buffer + count, "\0");
+#endif
+
+    return 0;
 }
 /// @endcond
 

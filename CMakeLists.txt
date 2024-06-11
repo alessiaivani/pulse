@@ -224,4 +224,4 @@ target_link_libraries(pulse_send ${catkin_LIBRARIES})
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-add_dependencies(acc_plot ${PROJECT_NAME}_gencpp)
+#add_dependencies(acc_plot ${PROJECT_NAME}_gencpp)
