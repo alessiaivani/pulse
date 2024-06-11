@@ -9,6 +9,8 @@
 #include <std_msgs/MultiArrayDimension.h>
 
 #include <std_msgs/Float64MultiArray.h>
+#include <std_msgs/Float64.h>
+
 #include <std_msgs/Int16MultiArray.h>
 #include <std_msgs/Int16.h>
 #include "std_msgs/MultiArrayLayout.h"
@@ -54,13 +56,12 @@ int main(int argc, char **argv)
 
 	acc.data.resize(6); 
 
-	ros::Publisher force_pub = node.advertise<std_msgs::Float64MultiArray>("force", 1); //nome topic 
+	ros::Publisher force_pub = node.advertise<std_msgs::Float64>("force", 1); //nome topic 
 
-    std_msgs::Float64MultiArray force; // modificare con il valore che dovrò inviare all'act_send
+    std_msgs::Float64 force; // modificare con il valore che dovrò inviare all'act_send
 	//std_msgs::Int16 conta_loop;
 
 
-	force.data.resize(1); 
 
 	ros::Rate loop_rate(1000);  // Desired rate to turn in Hz	
 
@@ -259,7 +260,7 @@ int main(int argc, char **argv)
         // Need to call this function often to allow ROS to process incoming messages 
 
         
-        force.data[0] = sine[i];
+        force.data = sine[i];
         force_pub.publish(force);
 
 
