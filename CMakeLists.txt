@@ -150,6 +150,7 @@ add_definitions(${EIGEN3_DEFINITIONS})
 
 add_executable(pulse_read_fromfile src/pulse_read_fromfile.cpp src/cp_communications.cpp src/qbmove_communications.cpp)
 add_executable(pulse_send src/pulse_send.cpp src/cp_communications.cpp src/qbmove_communications.cpp)
+add_executable(pulse_send_fromunity src/pulse_send_fromunity.cpp src/cp_communications.cpp src/qbmove_communications.cpp)
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -164,10 +165,12 @@ add_executable(pulse_send src/pulse_send.cpp src/cp_communications.cpp src/qbmov
 # target_link_libraries(${PROJECT_NAME}_node
 #   ${catkin_LIBRARIES}
 # )
+
 # target_link_libraries(acc_reading ${catkin_LIBRARIES})
 # target_link_libraries(act_send ${catkin_LIBRARIES})
 target_link_libraries(pulse_read_fromfile ${catkin_LIBRARIES})
 target_link_libraries(pulse_send ${catkin_LIBRARIES})
+target_link_libraries(pulse_send_fromunity ${catkin_LIBRARIES})
 #############
 ## Install ##
 #######

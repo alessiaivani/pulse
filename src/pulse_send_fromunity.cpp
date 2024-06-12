@@ -136,21 +136,18 @@ bool initcall = false;
 /* read accelerations */
 using namespace Eigen;
 
-std::vector<double> accmatrix(6);
+double accmatrix;
 
 double forcematrix;
 
-void readCallback(const std_msgs::Float64MultiArray::ConstPtr &acc)
+void readCallback(const std_msgs::Float64::ConstPtr &acc)
 {
 
 	initcall = true;
 
 	// cout << "here" << endl;
 
-	for (size_t i = 0; i < 6; ++i)
-	{
-		accmatrix[i] = acc->data[i];
-	}
+	accmatrix = acc->data;
 
 	// accmatrix.row(0) << acc->data[0], acc->data[1], acc->data[2], acc->data[3], acc->data[4], acc->data[5];
 }
@@ -226,9 +223,16 @@ int main(int argc, char **argv)
 	elapsed_mseconds_t = (end - start) * 1000;
 
 	//------------------------------PUMP and VT send signals from file--------------------
+	double oldforce;
+	double friction;
 
-	double imu1;
-	double imu2;
+	// CLOSE THE VALVE sending '1'
+	commActivate(&comm_settings_t, Pulse_id, 1);
+	usleep(1000);
+	commGetActivate(&comm_settings_t, Pulse_id, &aux_char);
+	std::cout << "\n- closed -\n"
+			  << std::endl;
+	usleep(1000000);
 
 	while (ros::ok())
 	{
@@ -237,49 +241,101 @@ int main(int argc, char **argv)
 		{
 
 			//------------controllo dati---
-		/*	cout << "------force-----" << endl;
-			cout << forcematrix  << endl;
-			cout << "------acc1-----" << endl;
-			cout << accmatrix[0] << endl;
-			cout << accmatrix[1] << endl;
-			cout << accmatrix[2] << endl;
-			cout << "------acc2-----" << endl;
-			cout << accmatrix[3] << endl;
-			cout << accmatrix[4] << endl;
-			cout << accmatrix[5] << endl;
-*/
-			imu1 = abs(accmatrix[0] + accmatrix[1] + accmatrix[2]);
-			imu2 = abs(accmatrix[3] + accmatrix[4] + accmatrix[5]);
+			/*	cout << "------force-----" << endl;
+				cout << forcematrix  << endl;
+				cout << "------acc1-----" << endl;
+				cout << accmatrix[0] << endl;
+				cout << accmatrix[1] << endl;
+				cout << accmatrix[2] << endl;
+				cout << "------acc2-----" << endl;
+				cout << accmatrix[3] << endl;
+				cout << accmatrix[4] << endl;
+				cout << accmatrix[5] << endl;
+	*/
+			friction = abs(accmatrix);
 
-			//cout << accmatrix[0] << endl;
+			cout << accmatrix << endl;
 
+			//-------------Compute INPUTS
 
-			inputsPULSE[0] = 0;//forcematrix * 100; // PUMP input
-			inputsPULSE[1] = abs( accmatrix[0] )*10 +i;			// VT1 input
-			inputsPULSE[2] = 0;//abs(accmatrix[1]  + i);			// VT2 input
+			inputsPULSE[0] = forcematrix * 100;	 // PUMP input
+			inputsPULSE[1] = abs(friction * 20); // VT1 input
+			inputsPULSE[2] = abs(friction * 20); // VT2 input
 
-			if (inputsPULSE[0] > 30){
-			inputsPULSE[0]=30;}
-			if (inputsPULSE[0] <0){
-			inputsPULSE[0]=0;}
+			// THRESHOLDS------------------------------------------------------
 
-			if (inputsPULSE[1] > 40){
-			inputsPULSE[1]=40;}
-			if (inputsPULSE[1] <0){
-			inputsPULSE[1]=0;}
+			if (inputsPULSE[0] > 30)
+			{
+				inputsPULSE[0] = 30;
+			}
+			if (inputsPULSE[0] < 0)
+			{
+				inputsPULSE[0] = 0;
+			}
 
-			if (inputsPULSE[2] > 10){
-			inputsPULSE[2]=10;}
-			if (inputsPULSE[2] <0){
-			inputsPULSE[2]=0;}
+			if (inputsPULSE[1] > 30)
+			{
+				inputsPULSE[1] = 30;
+			}
+			if (inputsPULSE[1] < 0)
+			{
+				inputsPULSE[1] = 0;
+			}
 
-			i = i + 1; 
+			if (inputsPULSE[2] > 30)
+			{
+				inputsPULSE[2] = 30;
+			}
+			if (inputsPULSE[2] < 0)
+			{
+				inputsPULSE[2] = 0;
+			}
+
+			if (i == 0)
+			{
+				oldforce = inputsPULSE[0];
+			}
+			else
+			{
+				if (inputsPULSE[0] < oldforce)
+				{
+					// open to deflate the silicone chambers
+					commActivate(&comm_settings_t, Pulse_id, 0);
+					std::cout << "\n- open -\n"
+							  << std::endl;
+					usleep(1000000);
+					oldforce = inputsPULSE[0];
+					inputsPULSE[0] = 0;
+				}
+
+				if (inputsPULSE[0] > oldforce)
+				{
+					// close to inflate the silicone chambers
+					commActivate(&comm_settings_t, Pulse_id, 1);
+					usleep(1000);
+					std::cout << "\n- closed -\n"
+							  << std::endl;
+					usleep(1000000);
+					oldforce = inputsPULSE[0];
+				}
+
+				if (inputsPULSE[0] = oldforce)
+				{
+					commActivate(&comm_settings_t, Pulse_id, 1);
+					usleep(1000);
+					std::cout << "\n- closed -\n"
+							  << std::endl;
+					usleep(1000000);
+					oldforce = inputsPULSE[0];
+					inputsPULSE[0] = 0;
+				}
+			}
 
 			cout << "------INPUTs-----" << endl;
 
 			cout << inputsPULSE[0] << endl;
-			cout << inputsPULSE[1]<< endl;
-			cout << inputsPULSE[2]<< endl;
+			cout << inputsPULSE[1] << endl;
+			cout << inputsPULSE[2] << endl;
 
 			// N.B LA FUNZIONE È commSetInputsPULSE, diversa da commSetInputs che invece serve a controllare il motore della mano
 			commSetInputsPULSE(&comm_settings_t, Pulse_id, inputsPULSE); // Send inputs to device
