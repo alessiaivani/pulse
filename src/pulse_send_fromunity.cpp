@@ -137,15 +137,17 @@ bool initcall = false;
 using namespace Eigen;
 
 double accmatrix;
-
 double forcematrix;
+short int currents[2];
+short int pressure;
+
 
 void readCallback(const std_msgs::Float64::ConstPtr &acc)
 {
 
 	initcall = true;
-
-	// cout << "here" << endl;
+	cout << "velocity:" << endl;
+	cout << accmatrix << endl;
 
 	accmatrix = acc->data;
 
@@ -156,7 +158,28 @@ void readCallback2(const std_msgs::Float64::ConstPtr &force)
 {
 	initcall = true;
 	forcematrix = force->data;
+	cout << "force:" << endl;
+
+	cout << forcematrix << endl;
 }
+
+void signal_callback_handler(int signum) {  // Codice che viene eseguito quando fai CTRL+C
+	initcall=false; 
+	inputsPULSE[0] = 0; // Reset inputs
+    inputsPULSE[1] = 0;
+	inputsPULSE[2] = 0;
+    commSetInputsPULSE(&comm_settings_t, Pulse_id, inputsPULSE); // Send reset to device
+	commActivate(&comm_settings_t, Pulse_id, 0);
+		std::cout << "\n- valve open - silicone chambers deflating-\n"<< std::endl;
+		usleep(1000000);
+
+
+   	closeRS485( &comm_settings_t );
+   	std::cout << "\n - Execution stopped -  \n"  << std::endl;
+    // Terminate program
+    exit(signum);
+}
+
 
 int main(int argc, char **argv)
 {
@@ -180,7 +203,7 @@ int main(int argc, char **argv)
 
 	std_msgs::Int16 act;
 
-	ros::Rate loop_rate(1000); // Desired rate to turn in Hz
+	ros::Rate loop_rate(1200); // Desired rate to turn in Hz
 
 	//--------------------------------------------Device preparation----------------------------
 	cout << "\n\t Pulse Device\n";
@@ -224,12 +247,18 @@ int main(int argc, char **argv)
 
 	//------------------------------PUMP and VT send signals from file--------------------
 	double oldforce;
+	int oldi =0;
+
 	double friction;
+
+	// open to deflate the silicone chambers
+	commActivate(&comm_settings_t, Pulse_id, 0);
+	std::cout << "\n- valve open - silicone chambers deflating-\n"<< std::endl;
+	usleep(1000000);
 
 	// CLOSE THE VALVE sending '1'
 	commActivate(&comm_settings_t, Pulse_id, 1);
 	usleep(1000);
-	commGetActivate(&comm_settings_t, Pulse_id, &aux_char);
 	std::cout << "\n- closed -\n"
 			  << std::endl;
 	usleep(1000000);
@@ -241,41 +270,36 @@ int main(int argc, char **argv)
 		{
 
 			//------------controllo dati---
-			/*	cout << "------force-----" << endl;
+			/*	cout << "------pressure-----" << endl;
 				cout << forcematrix  << endl;
-				cout << "------acc1-----" << endl;
-				cout << accmatrix[0] << endl;
-				cout << accmatrix[1] << endl;
-				cout << accmatrix[2] << endl;
-				cout << "------acc2-----" << endl;
-				cout << accmatrix[3] << endl;
-				cout << accmatrix[4] << endl;
-				cout << accmatrix[5] << endl;
+				cout << "------friction-----" << endl;
+				cout << accmatrix << endl;
+				
 	*/
 			friction = abs(accmatrix);
 
-			cout << accmatrix << endl;
+			// cout << accmatrix << endl;
 
 			//-------------Compute INPUTS
 
-			inputsPULSE[0] = forcematrix * 100;	 // PUMP input
-			inputsPULSE[1] = abs(friction * 20); // VT1 input
-			inputsPULSE[2] = abs(friction * 20); // VT2 input
+			inputsPULSE[0] = forcematrix * 10; // forcematrix * 100;	 // PUMP input
+			inputsPULSE[1] = friction * 210;			  // abs(friction * 20); // VT1 input
+			inputsPULSE[2] = 0;			  // abs(friction * 20); // VT2 input
 
-			// THRESHOLDS------------------------------------------------------
+			// THRESHOLDS for the values coming from unity ------------------------------------------------------
 
-			if (inputsPULSE[0] > 30)
+			if (inputsPULSE[0] > 60)
 			{
-				inputsPULSE[0] = 30;
+				inputsPULSE[0] = 60;
 			}
 			if (inputsPULSE[0] < 0)
 			{
 				inputsPULSE[0] = 0;
 			}
 
-			if (inputsPULSE[1] > 30)
+			if (inputsPULSE[1] > 40)
 			{
-				inputsPULSE[1] = 30;
+				inputsPULSE[1] = 40;
 			}
 			if (inputsPULSE[1] < 0)
 			{
@@ -291,54 +315,93 @@ int main(int argc, char **argv)
 				inputsPULSE[2] = 0;
 			}
 
+//------------------silicone chambers: pump, valve and pressure sensor settings
 			if (i == 0)
 			{
-				oldforce = inputsPULSE[0];
+				oldforce = 0;
 			}
+
 			else
+
 			{
-				if (inputsPULSE[0] < oldforce)
+
+				
+				if (inputsPULSE[0] < oldforce && i>oldi + 1)
 				{
 					// open to deflate the silicone chambers
 					commActivate(&comm_settings_t, Pulse_id, 0);
-					std::cout << "\n- open -\n"
-							  << std::endl;
-					usleep(1000000);
+					//std::cout << "\n- valve open - silicone chambers deflating-\n"<< std::endl;
+					usleep(10000);
 					oldforce = inputsPULSE[0];
 					inputsPULSE[0] = 0;
+					oldi=i;
 				}
 
 				if (inputsPULSE[0] > oldforce)
 				{
 					// close to inflate the silicone chambers
 					commActivate(&comm_settings_t, Pulse_id, 1);
-					usleep(1000);
-					std::cout << "\n- closed -\n"
-							  << std::endl;
-					usleep(1000000);
+					//std::cout << "\n- vale closed - silicone chambers inflating\n"<< std::endl;
+							  
+					usleep(10000);
 					oldforce = inputsPULSE[0];
+					
+
 				}
 
-				if (inputsPULSE[0] = oldforce)
+				if (inputsPULSE[0] == oldforce  && i>oldi +2)
 				{
 					commActivate(&comm_settings_t, Pulse_id, 1);
-					usleep(1000);
-					std::cout << "\n- closed -\n"
-							  << std::endl;
-					usleep(1000000);
+					//std::cout << "\n- vale closed - silicone chamber not inflating nor deflating \n" << std::endl;
+					usleep(10000);
 					oldforce = inputsPULSE[0];
 					inputsPULSE[0] = 0;
+					oldi=i;
 				}
 			}
-
-			cout << "------INPUTs-----" << endl;
+			i = i + 1;
+			 //cout << i << endl; 
+			/*cout << "------INPUTs-----" << endl;
 
 			cout << inputsPULSE[0] << endl;
 			cout << inputsPULSE[1] << endl;
-			cout << inputsPULSE[2] << endl;
+			cout << inputsPULSE[2] << endl;*/
 
-			// N.B LA FUNZIONE È commSetInputsPULSE, diversa da commSetInputs che invece serve a controllare il motore della mano
+			//cout << inputsPULSE[0] << endl;
+
+			// Settings ALL inputs N.B LA FUNZIONE È commSetInputsPULSE, diversa da commSetInputs che invece serve a controllare il motore della mano
 			commSetInputsPULSE(&comm_settings_t, Pulse_id, inputsPULSE); // Send inputs to device
+			usleep(10000);
+
+			// THRESHOLDS for the pressure value from the silicone chambers------------------------------------------------------
+
+			commGetCurrents(&comm_settings_t,Pulse_id, currents);
+			pressure = currents[0];											// il valore in uscità è in KPa*100 --> 2500 è 25KPa
+			//printf("Pressure value: %hd\t\n ", pressure);
+			fflush(stdout);
+			usleep(10000);
+
+			if (pressure > 800)
+			{
+				cout << "pressure limit---deflating NOW" << endl; 
+				commActivate(&comm_settings_t, Pulse_id, 0);
+				std::cout << "\n- valve open - silicone chambers deflating-\n"
+							  << std::endl;
+				usleep(1000000);
+				inputsPULSE[0] = 0;
+				commSetInputsPULSE(&comm_settings_t, Pulse_id, inputsPULSE); // Send inputs to device
+
+				commActivate(&comm_settings_t, Pulse_id, 1);
+				usleep(1000);
+				std::cout << "\n- vale closed - silicone chambers inflating\n"<< std::endl;
+							  
+				usleep(1000000);
+
+				
+
+			}
+	
+
 
 			usleep(1000);
 
@@ -361,11 +424,14 @@ int main(int argc, char **argv)
 				 // delay between samples
 			}*/
 		}
+		//------------------------------ set all to 0 berfore closing
+
 		inputsPULSE[0] = 0; // Reset inputs
 		inputsPULSE[1] = 0;
 		inputsPULSE[2] = 0;
 		commSetInputsPULSE(&comm_settings_t, Pulse_id, inputsPULSE); // Send reset to device
-
+							// open to deflate the silicone chambers
+		
 		ros::spinOnce();   // Need to call this function often to allow ROS to process incoming messages
 		loop_rate.sleep(); // Sleep for the rest of the cycle, to enforce the loop rate
 	}
@@ -373,54 +439,7 @@ int main(int argc, char **argv)
 	std::cout << "\n- End of Code -\n"
 			  << std::endl;
 
-	/*	--------------------------- PUMP and VT send signals with old code-----------------------
-	while(active){
-	for (int i = 0; i <3; i++) {
 
-			//cout << i << endl;
-
-				accelerometer_matrix[i][0] = accmatrix(i, 0);
-				accelerometer_matrix[i][1] = accmatrix(i, 1);
-				accelerometer_matrix[i][2] = accmatrix(i, 2);
-				//filtro <<accelerometer_matrix[i][0] << "," <<accelerometer_matrix[i][1] << "," <<accelerometer_matrix[i][2] <<endl;
-				//cout <<accelerometer_matrix[1][0] << "," <<accelerometer_matrix[1][1] << "," <<accelerometer_matrix[1][2] <<endl;
-
-			OutliersDeletion(i);
-			SignalFiltering(i);
-			//filtro << matrice_completa[3*i+0] << matrice_completa[3*i+1] <<matrice_completa[3*i+2] <<endl;
-			SingleAxisMapping(i);
-			//if (i==0)
-			//map << vect_acc_filt_sum[0] << endl;
-			ActuatorsInputComputation(i);
-			conta_1++;
-
-		//	air_chambers_control(i);
-
-
-
-			//cout << "input 0: " << input_act_sent[0] << endl;// Further signal manipulation
-			//cout << "input 1: " << input_act_sent[1] << endl;
-
-			act_sent[0]=pump; // camerine
-
-			act_sent[1]=input_act_sent[0];// imu 0
-			act_sent[2]=input_act_sent[1];// imu 1
-
-
-			//commSetInputs(&comm_settings_act, ACT_ID_RM, act_sent);
-
-			ros::spinOnce();     // Need to call this function often to allow ROS to process incoming messages
-			loop_rate.sleep();   // Sleep for the rest of the cycle, to enforce the loop rate
-
-		}
-
-
-
-		usleep(1000);
-
-	}
-
-	*/
 
 	return 0;
 }
