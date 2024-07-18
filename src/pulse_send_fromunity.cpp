@@ -141,13 +141,12 @@ double forcematrix;
 short int currents[2];
 short int pressure;
 
-
 void readCallback(const std_msgs::Float64::ConstPtr &acc)
 {
 
 	initcall = true;
-	cout << "velocity:" << endl;
-	cout << accmatrix << endl;
+	// cout << "velocity:" << endl;
+	// cout << accmatrix << endl;
 
 	accmatrix = acc->data;
 
@@ -158,28 +157,29 @@ void readCallback2(const std_msgs::Float64::ConstPtr &force)
 {
 	initcall = true;
 	forcematrix = force->data;
-	cout << "force:" << endl;
+	// cout << "force:" << endl;
 
-	cout << forcematrix << endl;
+	// cout << forcematrix << endl;
 }
 
-void signal_callback_handler(int signum) {  // Codice che viene eseguito quando fai CTRL+C
-	initcall=false; 
+void signal_callback_handler(int signum)
+{ // Codice che viene eseguito quando fai CTRL+C
+	initcall = false;
 	inputsPULSE[0] = 0; // Reset inputs
-    inputsPULSE[1] = 0;
+	inputsPULSE[1] = 0;
 	inputsPULSE[2] = 0;
-    commSetInputsPULSE(&comm_settings_t, Pulse_id, inputsPULSE); // Send reset to device
+	commSetInputsPULSE(&comm_settings_t, Pulse_id, inputsPULSE); // Send reset to device
 	commActivate(&comm_settings_t, Pulse_id, 0);
-		std::cout << "\n- valve open - silicone chambers deflating-\n"<< std::endl;
-		usleep(1000000);
+	std::cout << "\n- valve open - silicone chambers deflating-\n"
+			  << std::endl;
+	usleep(1000000);
 
-
-   	closeRS485( &comm_settings_t );
-   	std::cout << "\n - Execution stopped -  \n"  << std::endl;
-    // Terminate program
-    exit(signum);
+	closeRS485(&comm_settings_t);
+	std::cout << "\n - Execution stopped -  \n"
+			  << std::endl;
+	// Terminate program
+	exit(signum);
 }
-
 
 int main(int argc, char **argv)
 {
@@ -203,10 +203,10 @@ int main(int argc, char **argv)
 
 	std_msgs::Int16 act;
 
-	ros::Rate loop_rate(1200); // Desired rate to turn in Hz
+	ros::Rate loop_rate(1000); // Desired rate to turn in Hz
 
 	//--------------------------------------------Device preparation----------------------------
-	cout << "\n\t Pulse Device\n";
+	cout << "\n\t Pulse Device - For UNITY\n";
 	cout << "\n\n------------------------------------------------------------------------\n";
 	// Opening the port the device is connected to
 	cout << "\n\n Opening COM ports to communicate with the Actuators.";
@@ -246,14 +246,15 @@ int main(int argc, char **argv)
 	elapsed_mseconds_t = (end - start) * 1000;
 
 	//------------------------------PUMP and VT send signals from file--------------------
-	double oldforce;
-	int oldi =0;
+	double oldforce = 0;
+	int oldi = 0;
 
 	double friction;
 
 	// open to deflate the silicone chambers
 	commActivate(&comm_settings_t, Pulse_id, 0);
-	std::cout << "\n- valve open - silicone chambers deflating-\n"<< std::endl;
+	std::cout << "\n- valve open - silicone chambers deflating-\n"
+			  << std::endl;
 	usleep(1000000);
 
 	// CLOSE THE VALVE sending '1'
@@ -274,100 +275,203 @@ int main(int argc, char **argv)
 				cout << forcematrix  << endl;
 				cout << "------friction-----" << endl;
 				cout << accmatrix << endl;
-				
+
 	*/
 			friction = abs(accmatrix);
+			inputsPULSE[1] = friction * 90;
 
 			// cout << accmatrix << endl;
 
-			//-------------Compute INPUTS
+			//-------------Compute INPUTS-------------old
+			/*
+						inputsPULSE[0] = forcematrix * 2; // forcematrix * 100;	 // PUMP input before *8 64
+						inputsPULSE[1] = friction * 240;  // abs(friction * 20); // VT1 input
+						inputsPULSE[2] = 0;				  // abs(friction * 20); // VT2 input
 
-			inputsPULSE[0] = forcematrix * 10; // forcematrix * 100;	 // PUMP input
-			inputsPULSE[1] = friction * 210;			  // abs(friction * 20); // VT1 input
-			inputsPULSE[2] = 0;			  // abs(friction * 20); // VT2 input
+						// THRESHOLDS for the values coming from unity ------------------------------------------------------
 
-			// THRESHOLDS for the values coming from unity ------------------------------------------------------
+						if (inputsPULSE[0] > 80)
+						{
+							inputsPULSE[0] = 80;
+						}
+						if (inputsPULSE[0] < 0)
+						{
+							inputsPULSE[0] = 0;
+						}
 
-			if (inputsPULSE[0] > 60)
-			{
-				inputsPULSE[0] = 60;
-			}
-			if (inputsPULSE[0] < 0)
-			{
+						if (inputsPULSE[1] > 80)
+						{
+							inputsPULSE[1] = 80;
+						}
+						if (inputsPULSE[1] > 0)
+						{
+							inputsPULSE[1] = inputsPULSE[1] + 10;
+						}
+
+						if (inputsPULSE[1] < 0)
+						{
+							inputsPULSE[1] = 0;
+						}
+
+						if (inputsPULSE[2] > 40)
+						{
+							inputsPULSE[2] = 40;
+						}
+						if (inputsPULSE[2] < 0)
+						{
+							inputsPULSE[2] = 0;
+						}
+						*/
+			//-------------------compute inputs new
+			//----------force--------------
+			if (forcematrix < 0.5)
 				inputsPULSE[0] = 0;
+			if (forcematrix > 0.5 && forcematrix < 10)
+				inputsPULSE[0] = 20;
+			if (forcematrix > 10)
+				inputsPULSE[0] = 60;
+
+			//------------velocity
+
+			if (inputsPULSE[1] > 80)
+			{
+				inputsPULSE[1] = 80;
+			}
+			if (inputsPULSE[1] > 0)
+			{
+				inputsPULSE[1] = inputsPULSE[1] + 10;
 			}
 
-			if (inputsPULSE[1] > 40)
-			{
-				inputsPULSE[1] = 40;
-			}
 			if (inputsPULSE[1] < 0)
 			{
 				inputsPULSE[1] = 0;
 			}
 
-			if (inputsPULSE[2] > 30)
-			{
-				inputsPULSE[2] = 30;
-			}
-			if (inputsPULSE[2] < 0)
-			{
-				inputsPULSE[2] = 0;
-			}
+			inputsPULSE[2] = 0; // VT2
 
-//------------------silicone chambers: pump, valve and pressure sensor settings
-			if (i == 0)
+			//------------------silicone chambers: pump, valve and pressure sensor settings
+
+			if (i == 0) // se primo giro azzera tutto
 			{
 				oldforce = 0;
+				inputsPULSE[0] = 0; // Reset inputs
+				inputsPULSE[1] = 0;
+				inputsPULSE[2] = 0;
+				commSetInputsPULSE(&comm_settings_t, Pulse_id, inputsPULSE); // Send reset to device
+				commActivate(&comm_settings_t, Pulse_id, 0);
+				std::cout << "\n- valve open - silicone chambers deflating-\n"
+						  << std::endl;
+				usleep(1000000);
 			}
 
 			else
 
 			{
-
-				
-				if (inputsPULSE[0] < oldforce && i>oldi + 1)
+				//--------------------------------------------
+				if (inputsPULSE[0] == 0) // se zero sgonfia
 				{
+
 					// open to deflate the silicone chambers
 					commActivate(&comm_settings_t, Pulse_id, 0);
-					//std::cout << "\n- valve open - silicone chambers deflating-\n"<< std::endl;
+					// std::cout << "\n- valve open - silicone chambers deflating-\n"<< std::endl;
 					usleep(10000);
 					oldforce = inputsPULSE[0];
 					inputsPULSE[0] = 0;
-					oldi=i;
-				}
+					oldi = 0;
 
-				if (inputsPULSE[0] > oldforce)
+				}
+				else if (inputsPULSE[0] > oldforce) // se valore maggiore di quello prima di X allora gonfia ancora e salva nuovo valore
 				{
 					// close to inflate the silicone chambers
 					commActivate(&comm_settings_t, Pulse_id, 1);
-					//std::cout << "\n- vale closed - silicone chambers inflating\n"<< std::endl;
-							  
+					// std::cout << "\n- vale closed - silicone chambers inflating\n"<< std::endl;
 					usleep(10000);
 					oldforce = inputsPULSE[0];
-					
+					oldi = 0;
 
 				}
 
-				if (inputsPULSE[0] == oldforce  && i>oldi +2)
-				{
+				else if (inputsPULSE[0] = oldforce && inputsPULSE[0] != 0) // se valore uguale a prima + o - di X valvola chiusa e non gonfiare
+				{	
 					commActivate(&comm_settings_t, Pulse_id, 1);
-					//std::cout << "\n- vale closed - silicone chamber not inflating nor deflating \n" << std::endl;
+					// std::cout << "\n- vale closed - silicone chamber not inflating nor deflating \n" << std::endl;
+					usleep(10000);
+					// oldforce = inputsPULSE[0];
+					oldi = oldi +1; 
+
+					if (oldi > 2)
+					{
+						// open to deflate the silicone chambers
+						commActivate(&comm_settings_t, Pulse_id, 1);
+						// std::cout << "\n- valve open - silicone chambers deflating-\n"<< std::endl;
+						usleep(10000);
+						oldforce = inputsPULSE[0];
+						inputsPULSE[0] = 0;
+					}
+
+					
+				}
+				else if (inputsPULSE[0] < oldforce && inputsPULSE[0] != 0) // se valore minore di quello prima di X allora sgonfia ancora e salva nuovo valore
+				{
+					// close to inflate the silicone chambers
+					commActivate(&comm_settings_t, Pulse_id, 0);
+					// std::cout << "\n- vale closed - silicone chambers inflating\n"<< std::endl;
+
 					usleep(10000);
 					oldforce = inputsPULSE[0];
 					inputsPULSE[0] = 0;
-					oldi=i;
+					oldi = 0;
 				}
+
+				//------------------------- old but works
+				/*
+
+												if (inputsPULSE[0] < oldforce && i > oldi + 1)
+													{
+														// open to deflate the silicone chambers
+														commActivate(&comm_settings_t, Pulse_id, 0);
+														// std::cout << "\n- valve open - silicone chambers deflating-\n"<< std::endl;
+														usleep(10000);
+														oldforce = inputsPULSE[0];
+														inputsPULSE[0] = 0;
+														oldi = i;
+													}
+
+													if (inputsPULSE[0] > oldforce)
+													{
+														// close to inflate the silicone chambers
+														commActivate(&comm_settings_t, Pulse_id, 1);
+														// std::cout << "\n- vale closed - silicone chambers inflating\n"<< std::endl;
+
+														usleep(10000);
+														oldforce = inputsPULSE[0];
+													}
+
+													if (inputsPULSE[0] == oldforce && i > oldi + 3)
+													{
+														commActivate(&comm_settings_t, Pulse_id, 1);
+														// std::cout << "\n- vale closed - silicone chamber not inflating nor deflating \n" << std::endl;
+														usleep(10000);
+														oldforce = inputsPULSE[0];
+														inputsPULSE[0] = 0;
+														oldi = i;
+													}
+				*/
+
+				//-----------------------------------
 			}
+
 			i = i + 1;
-			 //cout << i << endl; 
+			// cout << i << endl;
 			/*cout << "------INPUTs-----" << endl;
 
 			cout << inputsPULSE[0] << endl;
 			cout << inputsPULSE[1] << endl;
 			cout << inputsPULSE[2] << endl;*/
 
-			//cout << inputsPULSE[0] << endl;
+			// cout << inputsPULSE[0] << endl;
+			// cout << inputsPULSE[1] << endl;
+			// cout << inputsPULSE[2] << endl;
 
 			// Settings ALL inputs N.B LA FUNZIONE È commSetInputsPULSE, diversa da commSetInputs che invece serve a controllare il motore della mano
 			commSetInputsPULSE(&comm_settings_t, Pulse_id, inputsPULSE); // Send inputs to device
@@ -375,33 +479,49 @@ int main(int argc, char **argv)
 
 			// THRESHOLDS for the pressure value from the silicone chambers------------------------------------------------------
 
-			commGetCurrents(&comm_settings_t,Pulse_id, currents);
-			pressure = currents[0];											// il valore in uscità è in KPa*100 --> 2500 è 25KPa
-			//printf("Pressure value: %hd\t\n ", pressure);
+			commGetCurrents(&comm_settings_t, Pulse_id, currents);
+			pressure = currents[0]; // il valore in uscità è in KPa*100 --> 2500 è 25KPa
+			// printf("Pressure value: %hd\t\n ", pressure);
 			fflush(stdout);
 			usleep(10000);
 
-			if (pressure > 800)
+			if (pressure > 650) // 950 old
 			{
-				cout << "pressure limit---deflating NOW" << endl; 
-				commActivate(&comm_settings_t, Pulse_id, 0);
+				cout << "pressure limit---STOP NOW" << endl;
+				/*commActivate(&comm_settings_t, Pulse_id, 0);
 				std::cout << "\n- valve open - silicone chambers deflating-\n"
-							  << std::endl;
-				usleep(1000000);
+						  << std::endl;
+				usleep(1000000);*/
+				commActivate(&comm_settings_t, Pulse_id, 1);
+				usleep(1000);
+				std::cout << "\n- vale closed - silicone chambers nor deflating nor inflating\n"
+						  << std::endl;
 				inputsPULSE[0] = 0;
 				commSetInputsPULSE(&comm_settings_t, Pulse_id, inputsPULSE); // Send inputs to device
 
+
+
+				usleep(1000000);
+			}
+
+			if (pressure > 1100) // 950 old
+			{
+				cout << "pressure limit---deflating NOW" << endl;
+				commActivate(&comm_settings_t, Pulse_id, 0);
+				std::cout << "\n- valve open - silicone chambers deflating-\n"
+						  << std::endl;
+				usleep(1000000);
 				commActivate(&comm_settings_t, Pulse_id, 1);
 				usleep(1000);
-				std::cout << "\n- vale closed - silicone chambers inflating\n"<< std::endl;
-							  
+				std::cout << "\n- vale closed - silicone chambers nor deflating nor inflating\n"
+						  << std::endl;
+				inputsPULSE[0] = 0;
+				commSetInputsPULSE(&comm_settings_t, Pulse_id, inputsPULSE); // Send inputs to device
+
+
+
 				usleep(1000000);
-
-				
-
 			}
-	
-
 
 			usleep(1000);
 
@@ -430,16 +550,24 @@ int main(int argc, char **argv)
 		inputsPULSE[1] = 0;
 		inputsPULSE[2] = 0;
 		commSetInputsPULSE(&comm_settings_t, Pulse_id, inputsPULSE); // Send reset to device
-							// open to deflate the silicone chambers
-		
+																	 // open to deflate the silicone chambers
+
 		ros::spinOnce();   // Need to call this function often to allow ROS to process incoming messages
 		loop_rate.sleep(); // Sleep for the rest of the cycle, to enforce the loop rate
 	}
+
+	inputsPULSE[0] = 0; // Reset inputs
+	inputsPULSE[1] = 0;
+	inputsPULSE[2] = 0;
+	commSetInputsPULSE(&comm_settings_t, Pulse_id, inputsPULSE); // Send reset to device
+	commActivate(&comm_settings_t, Pulse_id, 0);
+	std::cout << "\n- valve open - silicone chambers deflating-\n"
+			  << std::endl;
+	usleep(1000000);
+
 	closeRS485(&comm_settings_t);
 	std::cout << "\n- End of Code -\n"
 			  << std::endl;
-
-
 
 	return 0;
 }
